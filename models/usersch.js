@@ -5,10 +5,13 @@ const uniqueValidator = require('mongoose-unique-validator')
 const Schema = mongoose.Schema;
 
 const customerSchema = new Schema({
-    name : { type: String, required: true},
-    emailId : { type: String, required: true, unique: true},
-    password : { type: String, required: true, minlength: 6},
-    image : { type: String, required: true}
+    name : { type: String},
+   // emailId : { type: String},
+    //password : { type: String, required: true, minlength: 6},
+    //image : { type: String, required: true},
+    phone : {type : Number, required : true},
+    address : {type : Object},
+    orders : {type: Array},
 });
 
 customerSchema.plugin(uniqueValidator);

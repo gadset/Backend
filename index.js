@@ -19,6 +19,14 @@ const deals = require('./src/deals');
 const glossary = require('./src/glossary');
 const search = require('./src/search');
 const top = require('./src/top');
+const mongoose = require('mongoose');
+mongoose.connect('mongodb+srv://kiran333:kiran333@cluster0.h8q8rtb.mongodb.net/?retryWrites=true&w=majority')
+.then(()=>{
+    console.log('Connected to database!')
+}).catch(()=>{
+    console.log('Connection failed')
+});
+
 
 const mongoPractice = require('./routes/phones.js');
 const mongopra = require('./routes/user')
@@ -27,10 +35,11 @@ const mongopart = require('./routes/partner')
 app.use(express.json({ extended: false }));
 
 app.post('/quotes', mongoPractice.createQuote);
-app.post('/users',mongopra.createUser);
-app.post('/partner',mongopart.createPartner);
+app.use('/partner',require('./routes/partner'));
+app.use('/users',require("./routes/user.js"));
 //app.use("/", require("./routes/phones.js"));
-//app.use("/", require("./routes/payment.js"));
+app.use("/payment", require("./routes/payment.js"));
+app.use('/message', require('./routes/subscription.js'));
 //app.use("/message", require("./routes/sendmessage"));
 
 // mongoose

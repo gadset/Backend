@@ -5,16 +5,9 @@ const glossary = require('../src/glossary');
 const search = require('../src/search');
 const top = require('../src/top');
 
-const mongoose = require('mongoose');
+
 
 const Quote = require('../models/quote');
-
-mongoose.connect('mongodb+srv://kiran333:kiran333@cluster0.h8q8rtb.mongodb.net/?retryWrites=true&w=majority')
-.then(()=>{
-    console.log('Connected to database!')
-}).catch(()=>{
-    console.log('Connection failed')
-});
 
 
 
