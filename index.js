@@ -40,6 +40,7 @@ app.use('/users',require("./routes/user.js"));
 //app.use("/", require("./routes/phones.js"));
 app.use("/payment", require("./routes/payment.js"));
 app.use('/message', require('./routes/subscription.js'));
+app.use('/order', require('./routes/Orders.js'));
 //app.use("/message", require("./routes/sendmessage"));
 
 // mongoose
