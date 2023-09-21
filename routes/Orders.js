@@ -16,13 +16,14 @@ router.get('/getorders', function(req,res){
 router.post('/', function (req, res) {
     async function start() {
       let id = "";
+	  console.log("yes running")
 	   const createorder = new Order({
-     partnerid : req.body.partnerid,  //id of partner
+     partnerid : req.body.partner['partnerid'],  //id of partner
 	delivery : false,  // delivered or not
-    paymenttotal : req.body.paymenttotal, 
-	paymentdone : req.body.amount,
+    paymenttotal : req.body.amount, 
+	paymentdone : req.body.partner['amount'],
     customerid : req.body.customerid,
-    device : req.body.device,
+    device : req.body.model,
 	issue : req.body.issues,
 	entry : {},  // will come after start reparing
 	exit : {},   // will come if repairing pending so order is completed now
