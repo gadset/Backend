@@ -18,16 +18,16 @@ router.post('/', function (req, res) {
       let id = "";
 	   const createorder = new Order({
      partnerid : req.body.partnerid,  //id of partner
-	delivery : false,  // delivered or not
-    paymenttotal : req.body.paymenttotal, 
-	paymentdone : req.body.amount,
-    customerid : req.body.customerid,
-    device : req.body.device,
-	issue : req.body.issues,
-	entry : {},  // will come after start reparing
-	exit : {},   // will come if repairing pending so order is completed now
-	deliveryform : {}, // order delivered to the customer
-	status : "no", 
+    delivery : false,  // delivered or not
+      paymenttotal : req.body.paymenttotal, 
+    paymentdone : req.body.amount,
+      customerid : req.body.customerid,
+      device : req.body.device,
+    issue : req.body.issues,
+    entry : {},  // will come after start reparing
+    exit : {},   // will come if repairing pending so order is completed now
+    deliveryform : {}, // order delivered to the customer
+    status : "no", 
       });
       const result = await createorder.save();
       console.log(result["_id"]);

@@ -4,7 +4,9 @@ const Customer = require("../models/usersch");
 const Quote = require("../models/quote");
 const router = express.Router();
 const Partner = require("../models/partnersch");
+const QuotesSche = require('../models/Ordersch');
 const webPush = require ('web-push');
+const Ordersch = require("../models/Ordersch");
 const publicVapidKey = 'BMQOKdrpuYRNgI3wXtDoQstTJEt1rnO9w6b9KM3MnJek8V4DH72OYNYoACbpveEVg_1snYmI8EZIdJV_5qjfMo4';
 const privateVapidKey = '8xw5QAlfRzN9TcZdUK2rI6zUx5AwBXMC0PbVPngST0E';
 
@@ -60,7 +62,7 @@ router.post("/sendquote", function (req, res) {
       issu: req.body.issue,
       model: req.body.model,
       device: req.body.device,
-      activestate: false,
+      activestate: true,
       quality: req.body.quality,
       warranty: req.body.warranty,
       service: req.body.service,
@@ -92,13 +94,14 @@ router.post("/sendquote", function (req, res) {
   start();
 });
 
+
 router.post("/submitquote", function (req, res) {
   async function start() {
     console.log(req.body.partnerid);
     const partnerdata = await Partner.find({ _id: req.body.partnerid });
     const partnerupdate = await Partner.updateOne({ _id: req.body.partnerid } ,
       { $push: { quotes: req.body.id  } }
-      );
+    );
 
     console.log(partnerdata);
     const data = {
@@ -128,19 +131,18 @@ router.post("/submitquote", function (req, res) {
 });
 
 
-router.get("/getquotes", function (req, res) {
-  async function start() {
-    const partnerid = req.query.id;
-    const partnerdata = await Partner.find({_id : partnerid});
-    const objects = await Quote.find({ _id : {$nin : partnerdata[0]['quotes']}});
-    // console.log(objects);
-    // for await (const doc of objects) {
-    //   console.log(doc);
-    // }
-    res.json({ objects: objects });
-  }
-  start();
-});
+// router.get("/getquotes", function (req, res) {
+//   async function start() {
+//     const partnerid = req.query.id;
+//     const partnerdata = await Partner.find({_id : partnerid});
+//     const objects = await Quote.find({ _id : {$nin : partnerdata[0]['quotes']}});
+//     for await (const doc of objects) {
+//       console.log(doc);
+//     }
+//     res.json({ objects: objects });
+//   }
+//   start();
+// });
 
 const SEND_INTERVAL = 5000;
 
@@ -271,16 +273,74 @@ router.post("/getorder", function (req, res) {
   start();
 });
 
-module.exports = router;
-// const createUser = async(req,res,next)=>{
-//     const createdUser = new Customer({
-//         name: req.body.name,
-//         emailId: req.body.emailId,
-//         password:req.body.password,
-//         image:req.body.image,
-//     });
-//     const result = await createdUser.save();
-//     res.json(result);
-// };
 
-// exports.createUser = createUser;
+router.get('/missedbids', async(req,res) => {
+    const Quotes = await Quote.find();
+    const data = [];
+    Quotes.forEach((quote) => {
+      if(quote.activestate == false) {
+        data.push(quote);
+      }
+    })
+    console.log(data);
+    res.status(200).json(data);
+})
+
+
+router.get('/pendingbids', async(req,res) => {
+    try {
+      const partnerId = req.query.id;
+      const partnerdata = await Ordersch.find({partnerid: partnerId});
+      const value = [];
+      console.log(partnerdata)
+      const updata = await partnerdata.forEach((data) => {
+        if(data['status'] == 'repairing') {
+          value.push(data);
+        }
+      })
+      res.status(200).json(value);
+
+    } catch(error) {
+      console.log(error);
+    }
+})
+
+router.get("/getquotes",  async(req, res) => {
+  try {
+    const partnerId = req.query.id;
+    const partnerdata = await Ordersch.find({partnerid: partnerId});
+      const value = [];
+      console.log(partnerdata)
+      const updata = await partnerdata.forEach((data) => {
+        if(data['status'] == 'no') {
+          value.push(data);
+        }
+      })
+      res.status(200).json(value);
+  } catch(error) {
+    console.log(error);
+  }
+})
+
+
+router.get("/completedquotes",  async(req, res) => {
+  try {
+    const partnerId = req.query.id;
+    const partnerdata = await Ordersch.find({partnerid: partnerId});
+      const value = [];
+      console.log(partnerdata)
+      const updata = await partnerdata.forEach((data) => {
+        if(data['status'] == 'yes') {
+          value.push(data);
+        }
+      })
+      res.status(200).json(value);
+  } catch(error) {
+    console.log(error);
+  }
+})
+
+
+
+module.exports = router;
+
