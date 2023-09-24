@@ -67,11 +67,41 @@ router.post('/delivery', function (req, res) {
       { _id: req.body.id },
       { $set: { deliveryform: req.body.formdata, delivery:true } } );
       console.log(result);
+      console.log('delivery')
     res.json({ message: "delivered" });;
     }
     start();
-  }) ;
+}) ;
 
 
+router.post('/entryInspection', async(req,res) => {
+  try {
+    const result = await Order.updateOne(
+      {_id: req.body.id},
+      { $set: {entry: req.body.fromInfo, status: 'reparing'} }
+    );
+    console.log(result);
+    console.log('entry')
+    res.json({message: 'Entry Successful'})
+  }
+  catch(error) {
+    console.log(error);
+  }
+})
 
-  module.exports = router 
+router.post('/exitInspection', async(req,res) => {
+  try {
+    const result = await Order.updateOne(
+      {_id: req.body.id},
+      { $set: {exit: req.body.fromInfo, status: 'yes'} }
+    );
+    console.log(result);
+    console.log('exit')
+    res.json({message: 'Entry Successful'})
+  }
+  catch(error) {
+    console.log(error);
+  }
+})
+
+module.exports = router 

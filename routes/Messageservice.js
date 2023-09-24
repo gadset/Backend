@@ -10,7 +10,7 @@ module.exports = {
         const phoneNumber = req.to; // phone number must start with country code
         client.messages.create({
             body: req.message,
-            to: phoneNumber, //'',  // Text this number
+            to: phoneNumber,  // Text this number
             from: '+12178820690' // From a valid Twilio number
         }, function(err, message) {
             if (err) {
