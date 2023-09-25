@@ -60,7 +60,8 @@ router.post("/sendquote", function (req, res) {
       issu: req.body.issue,
       model: req.body.model,
       device: req.body.device,
-      activestate: false,
+      activestate:true,
+      expirestate:false,
       quality: req.body.quality,
       warranty: req.body.warranty,
       service: req.body.service,
@@ -94,7 +95,7 @@ router.post("/sendquote", function (req, res) {
 
 router.post("/submitquote", function (req, res) {
   async function start() {
-    console.log(req.body.partnerid);
+    console.log(req.body);
     const partnerdata = await Partner.find({ _id: req.body.partnerid });
     const partnerupdate = await Partner.updateOne({ _id: req.body.partnerid } ,
       { $push: { quotes: req.body.id  } }
@@ -107,11 +108,11 @@ router.post("/submitquote", function (req, res) {
       rating: partnerdata[0]["rating"],
       percentage: partnerdata[0]["percentage"],
       warranty: req.body.warranty,
-      service: req.body.delivery,
+      service: req.body.service,
     };
     const res1 = await Quote.find({ _id: req.body.id })
     let message = "";
-    if(res1['activestate']===true){
+    if(res1['activestate']===false){
       message = "Sorry, time for bid is closed";
     }
     else{
@@ -122,11 +123,31 @@ router.post("/submitquote", function (req, res) {
       console.log(result);
       message = "successfully submited";
     }
-    res.json({ message: message });
+    res.status(200).json({ message: message });
   }
   start();
 });
 
+router.get("/getallbids", async function(req, res) {
+  try {
+    const allbids = await Quote.find({ activestate:true});
+
+    res.status(200).json({ allbids });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "An error occurred while fetching bids" });
+  }
+});
+router.get("/getbids", async function(req, res) {
+  try {
+    const allbids = await Quote.find();
+
+    res.status(200).json({ allbids });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "An error occurred while fetching bids" });
+  }
+});
 
 router.get("/getquotes", function (req, res) {
   async function start() {
