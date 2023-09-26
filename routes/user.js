@@ -62,7 +62,8 @@ router.post("/sendquote", function (req, res) {
       issu: req.body.issue,
       model: req.body.model,
       device: req.body.device,
-      activestate: true,
+      activestate:true,
+      expirestate:false,
       quality: req.body.quality,
       warranty: req.body.warranty,
       service: req.body.service,
@@ -97,7 +98,7 @@ router.post("/sendquote", function (req, res) {
 
 router.post("/submitquote", function (req, res) {
   async function start() {
-    console.log(req.body.partnerid);
+    console.log(req.body);
     const partnerdata = await Partner.find({ _id: req.body.partnerid });
     const partnerupdate = await Partner.updateOne({ _id: req.body.partnerid } ,
       { $push: { quotes: req.body.id  } }
@@ -110,11 +111,11 @@ router.post("/submitquote", function (req, res) {
       rating: partnerdata[0]["rating"],
       percentage: partnerdata[0]["percentage"],
       warranty: req.body.warranty,
-      service: req.body.delivery,
+      service: req.body.service,
     };
     const res1 = await Quote.find({ _id: req.body.id })
     let message = "";
-    if(res1['activestate']===true){
+    if(res1['activestate']===false){
       message = "Sorry, time for bid is closed";
     }
     else{
@@ -125,24 +126,24 @@ router.post("/submitquote", function (req, res) {
       console.log(result);
       message = "successfully submited";
     }
-    res.json({ message: message });
+    res.status(200).json({ message: message });
   }
   start();
 });
 
-
-// router.get("/getquotes", function (req, res) {
-//   async function start() {
-//     const partnerid = req.query.id;
-//     const partnerdata = await Partner.find({_id : partnerid});
-//     const objects = await Quote.find({ _id : {$nin : partnerdata[0]['quotes']}});
-//     for await (const doc of objects) {
-//       console.log(doc);
-//     }
-//     res.json({ objects: objects });
-//   }
-//   start();
-// });
+router.get("/getquotes", function (req, res) {
+  async function start() {
+    const partnerid = req.query.id;
+    const partnerdata = await Partner.find({_id : partnerid});
+    const objects = await Quote.find({ _id : {$nin : partnerdata[0]['quotes']}});
+    // console.log(objects);
+    // for await (const doc of objects) {
+    //   console.log(doc);
+    // }
+    res.json({ objects: objects });
+  }
+  start();
+});
 
 const SEND_INTERVAL = 5000;
 

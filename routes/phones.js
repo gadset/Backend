@@ -145,6 +145,7 @@ const createQuote = async(req,res,next)=>{
     issu: req.body.issu,
     model: req.body.model,
     activestate : true,
+    expirestate:false,
     quality : req.body.quality,
     warranty : req.body.warranty,
     service: req.body.service
