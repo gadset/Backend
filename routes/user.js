@@ -296,7 +296,7 @@ router.get('/pendingbids', async(req,res) => {
       const value = [];
       console.log(partnerdata)
       const updata = await partnerdata.forEach((data) => {
-        if(data['status'] == 'repairing') {
+        if(data['status'] == 'repairing' && data['delivery']== 'false') {
           value.push(data);
         }
       })
@@ -314,7 +314,7 @@ router.get("/getquotes",  async(req, res) => {
       const value = [];
       console.log(partnerdata)
       const updata = await partnerdata.forEach((data) => {
-        if(data['status'] == 'no') {
+        if(data['status'] == 'no'&& data['delivery']== 'false') {
           value.push(data);
         }
       })
@@ -330,9 +330,9 @@ router.get("/completedquotes",  async(req, res) => {
     const partnerId = req.query.id;
     const partnerdata = await Ordersch.find({partnerid: partnerId});
       const value = [];
-      console.log(partnerdata)
+      console.log('hi', partnerdata)
       const updata = await partnerdata.forEach((data) => {
-        if(data['status'] == 'yes') {
+        if(data['status'] == 'yes' && data['delivery']== 'false') {
           value.push(data);
         }
       })
@@ -342,6 +342,45 @@ router.get("/completedquotes",  async(req, res) => {
   }
 })
 
+router.get('/delivered', async(req,res) => {
+  try {
+    const partnerId = req.query.id;
+    const partnerdata = await Ordersch.find({partnerid: partnerId});
+      const value = [];
+      const updata = await partnerdata.forEach((data) => {
+        if(data['delivery'] == 'true') {
+          value.push(data);
+        }
+      })
+      console.log(value);
+      res.status(200).json(value);
+  } catch(error) {
+    console.log(error);
+  }
+})
+
+router.get("/getallbids", async function(req, res) {
+  try {
+    const allbids = await Quote.find({ activestate: 'true' });
+
+    res.status(200).json({ allbids });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "An error occurred while fetching bids" });
+  }
+});
+
+
+router.get("/getbids", async function(req, res) {
+  try {
+    const allbids = await Quote.find();
+
+    res.status(200).json({ allbids });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "An error occurred while fetching bids" });
+  }
+});
 
 
 module.exports = router;

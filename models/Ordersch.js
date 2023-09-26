@@ -6,7 +6,7 @@ const Schema = mongoose.Schema;
 
 const OrderSchema = new Schema({
     partnerid : { type: String, required: true},  //id of partner
-	delivery : { type: Boolean, required: true,},  // delivered or not
+	delivery : { type: String, required: true,},  // delivered or not
     paymenttotal : {type : Number, required : true}, 
 	paymentdone : {type : Number, required : true},
     customerid : {type : String, required : true},
