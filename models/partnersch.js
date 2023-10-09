@@ -13,8 +13,6 @@ const partnerSchema = new Schema({
     percentage : {type : Number},
     quotes : {type :Array},
     endpoint : {type : Object}
-    //password : { type: String, required: true, minlength: 6},
-    //image : { type: String, required: true}
 });
 
 partnerSchema.plugin(uniqueValidator);

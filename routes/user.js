@@ -9,15 +9,13 @@ const webPush = require ('web-push');
 const Ordersch = require("../models/Ordersch");
 const publicVapidKey = 'BMQOKdrpuYRNgI3wXtDoQstTJEt1rnO9w6b9KM3MnJek8V4DH72OYNYoACbpveEVg_1snYmI8EZIdJV_5qjfMo4';
 const privateVapidKey = '8xw5QAlfRzN9TcZdUK2rI6zUx5AwBXMC0PbVPngST0E';
+const jwt = require('jsonwebtoken');
+const middleware = require('../middleware');
+const { data } = require("cheerio/lib/api/attributes");
 
 //setting vapid keys details
 webPush.setVapidDetails('mailto:patnala.1@iitj.ac.in', publicVapidKey,privateVapidKey);
-// mongoose.connect('mongodb+srv://kiran333:kiran333@cluster0.h8q8rtb.mongodb.net/?retryWrites=true&w=majority')
-// .then(()=>{
-//     console.log('Connected to database!')
-// }).catch(()=>{
-//     console.log('Connection failed')
-// });
+
 
 router.post("/", function (req, res) {
   async function start() {
@@ -44,6 +42,71 @@ router.post("/", function (req, res) {
   start();
 });
 
+
+router.post('/loginCheck', async(req, res)=> {
+    try {
+      const phone = req.body.number;
+      console.log(phone);
+      const user = await Customer.findOne({phone: phone});
+      console.log(user);
+      if(!user) {
+        const newCustomer = new Customer({ phone: phone });
+        await newCustomer.save();
+        const token = jwt.sign({ id: newCustomer._id },'Gadset',{expiresIn:36000000},(err,token)=>{
+          if(err) throw err;
+          else{
+          return res.status(200).json({token, message: 'new user'})}
+          console.log(newCustomer)
+      });
+      } else {
+        const token = jwt.sign({ id: user._id },'Gadset',{expiresIn:36000000},(err,token)=>{
+            if(err) throw err;
+            else{
+            return res.status(200).json({token})}
+        });
+      }
+
+    } catch(error) {
+      res.json({'message': error})
+    }
+})
+
+router.post('/addname',middleware, async(req,res) => {
+    const {name} = req.body;
+    console.log(name);
+    try {
+      const UpdatedUser = await Customer.findByIdAndUpdate(
+        req.userid,
+        {name: name},
+        {new: true}
+      )
+      if(UpdatedUser) {
+        console.log(UpdatedUser);
+        res.status(200).json({UpdatedUser});
+      }
+      else {
+        res.status(200).json({message: 'user not found'})
+      }
+    } catch(error) {
+      res.json({error})
+    }
+})
+
+router.get('/profile', middleware, async(req, res) => {
+  try{
+    const user = await Customer.findOne({_id : req.userid});
+    console.log(req.userid)
+    if(user) {
+      console.log(user);
+      res.status(200).json({user})
+    } else {
+      res.json({message: 'No user found'})
+    }
+  } catch(err) {
+    res.status(400).json({err})
+  }
+})
+
 router.post("/setaddress", function (req, res) {
   async function start() {
     const result = await Customer.updateOne(
@@ -56,8 +119,12 @@ router.post("/setaddress", function (req, res) {
   start();
 });
 
-router.post("/sendquote", function (req, res) {
-  async function start() {
+
+
+
+router.post('/sendquote', middleware, async(req, res) => {
+  console.log('Entered')
+  try {
     const Createquote = new Quote({
       issu: req.body.issue,
       model: req.body.model,
@@ -66,34 +133,18 @@ router.post("/sendquote", function (req, res) {
       quality: req.body.quality,
       warranty: req.body.warranty,
       service: req.body.service,
-      customerid: req.body.customerid,
+      customerid: req.userid,
       quotesbypartner: [],
     });
-    const result = await Createquote.save();
-    console.log("/sendquotedone");
-    // const timerid = setTimeout(async() => {
-    //   console.log("active state changed");
-    //    await Quote.updateOne(
-    //     { _id: result["_id"] },
-    //     { $set: { activestate: true } }
-    //   );
-    // }, 60000);\
-    const payload = JSON.stringify({
-      title: 'New quote',
-      body: 'Consumer added Quoted a quote',
-    })
-    res.json({ id: result["_id"], message: "created the quote" });
-    const partners = await Partner.find();
-    console.log(partners);
-    partners.forEach(async (data)=> {
-      webPush.sendNotification(data.endpoint, payload)
-        .then(result => console.log(result))
-        .catch(e => console.log(e.stack))
-    })
+    console.log(Createquote);
+    await Createquote.save();
+    res.status(200).json({Createquote, message: 'Created the Quote'})
+    
+  } catch(err) {
+    console.error('Error:', err.message);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
-  start();
-});
-
+})
 
 router.post("/submitquote", function (req, res) {
   async function start() {
@@ -130,19 +181,6 @@ router.post("/submitquote", function (req, res) {
   start();
 });
 
-
-// router.get("/getquotes", function (req, res) {
-//   async function start() {
-//     const partnerid = req.query.id;
-//     const partnerdata = await Partner.find({_id : partnerid});
-//     const objects = await Quote.find({ _id : {$nin : partnerdata[0]['quotes']}});
-//     for await (const doc of objects) {
-//       console.log(doc);
-//     }
-//     res.json({ objects: objects });
-//   }
-//   start();
-// });
 
 const SEND_INTERVAL = 5000;
 
@@ -380,6 +418,34 @@ router.get("/getbids", async function(req, res) {
   }
 });
 
+router.get('/getquotesdata', middleware, async(req, res) => {
+  console.log('entered')
+  const user = req.userid;
+  console.log(user);
+  try {
+      const data = await Quote.find({ customerid: user });
+      console.log(data);
+      res.status(200).json(data); 
+  } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Internal Server Error' });
+  }
+})
+
+router.post('/getbidsfordevice' ,middleware, async(req, res) => {
+  console.log('Entered')
+  const user = req.userid;
+  const deviceid = req.body.id;
+  console.log(deviceid);
+  try {
+    const data = await Quote.findById(deviceid);
+    console.log(data);
+    res.status(200).json({data})
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+})
 
 module.exports = router;
 
