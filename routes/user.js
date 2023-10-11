@@ -7,14 +7,50 @@ const Partner = require("../models/partnersch");
 const QuotesSche = require('../models/Ordersch');
 const webPush = require ('web-push');
 const Ordersch = require("../models/Ordersch");
-const publicVapidKey = 'BMQOKdrpuYRNgI3wXtDoQstTJEt1rnO9w6b9KM3MnJek8V4DH72OYNYoACbpveEVg_1snYmI8EZIdJV_5qjfMo4';
-const privateVapidKey = '8xw5QAlfRzN9TcZdUK2rI6zUx5AwBXMC0PbVPngST0E';
+const SubscriptionSchema = require("../models/subscriptionschema")
+const publicVapidKey = 'BJs-1rAgTehzrIsAOwkqNHiwhTNB2Iudrw5XRzAen9wFcpcvICqVzpxwA7vwdyT1grGNOaKW9kdconwzjnHWWIg';
+const privateVapidKey = 'yRBdMIDs9GKjHqPytBgV0jyYrrMkF_IRbNWRH9kplaI';
 const jwt = require('jsonwebtoken');
 const middleware = require('../middleware');
 const { data } = require("cheerio/lib/api/attributes");
 
-//setting vapid keys details
-webPush.setVapidDetails('mailto:patnala.1@iitj.ac.in', publicVapidKey,privateVapidKey);
+router.get('/u', middleware, async(req, res) => {
+  const user = req.userid;
+  res.json({user})
+})
+
+router.post('/getbidsfordevice' ,middleware, async(req, res) => {
+  const user = req.userid;
+  const deviceid = req.body.id;
+  try {
+    const data = await Quote.findById(deviceid);
+    sendBidNotification(user);
+    res.status(200).json({data})
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+})
+
+async function sendBidNotification(user) {
+  
+  const subscription = await SubscriptionSchema.find({user : user})
+
+
+  const payload = JSON.stringify({
+    title: 'New Bid Arrived',
+    body: 'A new bid has been placed on your auction item.',
+    // bidData: bidData,
+  });
+
+  webPush.sendNotification(subscription, payload)
+    .then(() => {
+      console.log('Notification sent successfully');
+    })
+    .catch((error) => {
+      console.error('Error sending notification:', error);
+    });
+}
 
 
 router.post("/", function (req, res) {
@@ -31,7 +67,7 @@ router.post("/", function (req, res) {
         orders : [],
       });
       const result = await createdUser.save();
-      console.log(result["_id"]);
+      // console.log(result["_id"]);
       id = result['_id'];
     }
     else{
@@ -46,9 +82,9 @@ router.post("/", function (req, res) {
 router.post('/loginCheck', async(req, res)=> {
     try {
       const phone = req.body.number;
-      console.log(phone);
+      // console.log(phone);
       const user = await Customer.findOne({phone: phone});
-      console.log(user);
+      // console.log(user);
       if(!user) {
         const newCustomer = new Customer({ phone: phone });
         await newCustomer.save();
@@ -207,6 +243,7 @@ router.get('/quotesdashboard', (req, res) => {
       auth: req.query.auth
     }
   }
+
   const documentId = req.query.id; 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -432,20 +469,18 @@ router.get('/getquotesdata', middleware, async(req, res) => {
   }
 })
 
-router.post('/getbidsfordevice' ,middleware, async(req, res) => {
-  console.log('Entered')
-  const user = req.userid;
-  const deviceid = req.body.id;
-  console.log(deviceid);
+router.get('/bidstodisplay', async(req, res) => {
+
   try {
-    const data = await Quote.findById(deviceid);
-    console.log(data);
-    res.status(200).json({data})
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    const data = await Quote.find({}).sort({_id: -1}).limit(10);
+    res.status(200).json({data});
+  } catch(err) {
+    console.log(err);
+    res.json({err})
   }
 })
+
+
 
 module.exports = router;
 

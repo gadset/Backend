@@ -10,7 +10,8 @@ const quoteSchema = new mongoose.Schema({
     service:{type:String, required:true},
     customerid : {type : String},
     quotesbypartner : {type : Array},
-    createdAt: { type: Date, default: Date.now }
+    createdAt: { type: Date, default: Date.now },
+    expirestate:{type:Boolean, default:false, required:true},
 });
 
 module.exports = mongoose.model('Quote',quoteSchema);
