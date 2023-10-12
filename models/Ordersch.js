@@ -16,7 +16,7 @@ const OrderSchema = new Schema({
 	exit : {type : Object, required : true},   // will come if repairing pending so order is completed now
 	deliveryform : {type : Object, required : true}, // order delivered to the customer
 	status : {type : String, required : true},  // status of order (repair not started, repairing, reparing done)
-
+	
 });
 
 OrderSchema.plugin(uniqueValidator);

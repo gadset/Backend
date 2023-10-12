@@ -1,13 +1,15 @@
 const express = require('express')
 const Order = require('../models/Ordersch');
+const Partner = require('../models/partnersch');
 const router = express.Router();
 
 router.get('/getorders', function(req,res){
 	async function start() {
-    const partnerid = req.query.id;
+    const partnerid = req.query.partnerid;
 	const status = req.query.status;
 	const delivery = req.query.delivery;
-    const partnerdata = await Partner.find({_id : partnerid, status: status ,delivery : delivery});
+    const partnerdata = await Order.find({partnerid: partnerid, status: status ,delivery : delivery});
+	console.log(partnerdata);
     res.json({ objects: partnerdata });
   }
   start();
@@ -35,14 +37,13 @@ router.post('/', function (req, res) {
       id = result['_id'];
       res.json({ id: id});
     }
-
     start();
   }) ;
 
 
 router.post('/entry', function (req, res) {
     async function start() {
-	      const result = await Order.updateOne(
+		const result = await Order.updateOne(
       { _id: req.body.id },
       { $set: { entry: req.body.formdata, status : 'repairing' } } );
       console.log(result);

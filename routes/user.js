@@ -361,7 +361,10 @@ router.get('/delivered', async(req,res) => {
 
 router.get("/getallbids", async function(req, res) {
   try {
-    const allbids = await Quote.find({ activestate: 'true' });
+	const partnerid = req.query.id;
+    const partnerdata = await Partner.find({_id : partnerid});
+	// 
+    const allbids = await Quote.find({ activestate: 'true',  _id : {$nin : partnerdata?.[0]?.['quotes'] || ''} });
 
     res.status(200).json({ allbids });
   } catch (error) {

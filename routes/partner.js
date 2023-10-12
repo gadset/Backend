@@ -37,6 +37,19 @@ router.post('/', function (req, res) {
     start();
   }) ;
 
+
+router.get('/checkpartner', function (req, res){
+	async function start(){
+		console.log(req.query.phone);
+		const result = await Partner.find({phone : req.query.phone});
+		var id = '';
+		if(result[0]) { id = result[0]._id ;}
+		console.log(id);
+		res.json({partnerid : id});
+	}
+
+	start();
+});
 // const createPartner = async(req,res,next)=>{
 //     const createdPartner = new Partner({
 //         name: req.body.name,
