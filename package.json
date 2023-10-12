@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "nodemon index.js",
-    "gen_vapid_keys": " web-push generate-vapid-keys [--json]"
+    "gen_vapid_keys": " web-push generate-vapid-keys [--json]",
+    "build": "npm build"
   },
   "repository": {
     "type": "git",

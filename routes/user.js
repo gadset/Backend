@@ -165,7 +165,8 @@ router.post('/sendquote', middleware, async(req, res) => {
       issu: req.body.issue,
       model: req.body.model,
       device: req.body.device,
-      activestate: true,
+      activestate:true,
+      expirestate:false,
       quality: req.body.quality,
       warranty: req.body.warranty,
       service: req.body.service,
@@ -184,24 +185,28 @@ router.post('/sendquote', middleware, async(req, res) => {
 
 router.post("/submitquote", function (req, res) {
   async function start() {
-    console.log(req.body.partnerid);
+    console.log(req.body);
     const partnerdata = await Partner.find({ _id: req.body.partnerid });
+    console.log(partnerdata[0])
+    if (partnerdata[0] && partnerdata[0].quotes && partnerdata[0].quotes.includes(req.body.id)) {
+      return res.status(400).json({ message: "You already bided to the quote" });
+    }
+    
     const partnerupdate = await Partner.updateOne({ _id: req.body.partnerid } ,
       { $push: { quotes: req.body.id  } }
     );
-
-    console.log(partnerdata);
+    console.log(partnerupdate);
     const data = {
       amount: req.body.amount,
       partnerid: req.body.partnerid,
       rating: partnerdata[0]["rating"],
       percentage: partnerdata[0]["percentage"],
       warranty: req.body.warranty,
-      service: req.body.delivery,
+      service: req.body.service,
     };
     const res1 = await Quote.find({ _id: req.body.id })
     let message = "";
-    if(res1['activestate']===true){
+    if(res1['activestate']===false){
       message = "Sorry, time for bid is closed";
     }
     else{
@@ -210,13 +215,118 @@ router.post("/submitquote", function (req, res) {
         { $push: { quotesbypartner: data } }
       );
       console.log(result);
-      message = "successfully submited";
+      message = "successfully submited quote";
     }
-    res.json({ message: message });
+    res.status(200).json({ message: message });
   }
   start();
 });
 
+router.get("/getallbids", async function(req, res) {
+  try {
+    const partnerid = req.query.partnerid;
+    console.log(partnerid);
+    const allbids = await Quote.find({ activestate: true, expirestate: false });
+    const partner = await Partner.findOne({ _id: partnerid });
+    const filteredBids = allbids.filter((bid) => {
+      return !partner.quotes.includes(bid._id.toString());
+    });
+    res.status(200).json({ allbids: filteredBids });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "An error occurred while fetching bids" });
+  }
+});
+
+router.get("/getpartnerdata",async function (req,res){
+  const partnerid = req.query.partnerid;
+  console.log(partnerid)
+  try {
+    const partner = await Partner.findOne({ _id: partnerid }); 
+    const allbids = await Quote.find({});
+    const allorders=await Ordersch.find({})
+    if (!partner) {
+      return res.status(404).json({ message: 'Partner not found' });
+    }
+    console.log(allorders)
+    var all = 0;
+    var missed = 0;
+    var confirmed=0;
+    var repairing=0;
+    var ordercompleted=0;
+    var delivered=0;
+    var awaiting =0;
+    allbids.forEach((bid) => {
+      if (bid.activestate === true && bid.expirestate === false) {
+        if (!partner.quotes.includes(bid._id.toString())) { 
+          all=all+1;
+        }
+        
+      }
+      if(bid.activestate===true){
+        if (partner.quotes.includes(bid._id.toString())) { 
+          awaiting++;
+        }
+      }
+      if (bid.activestate === false && bid.expirestate === false) { 
+        if (!partner.quotes.includes(bid._id.toString())) { 
+          missed=missed+1;
+        }
+      }
+      if( bid.activestate===false){
+            if(partner.quotes.includes(bid._id.toString())){
+               allorders.forEach((order)=>{
+                   if(order.partnerid===partnerid){
+                    if(order.status==='no' && order.delivery ==='false'){
+                        confirmed=confirmed+1 
+                    }
+                    if(order.status==='repairing' && order.delivery ==='false'){
+                      repairing=repairing+1 
+                    }
+                    if(order.status==='done' && order.delivery ==='false'){
+                      ordercompleted=ordercompleted+1 
+                    }
+                    if(order.status==='done' && order.delivery ==='false'){
+                      delivered=delivered+1 
+                    }
+                   }
+               })
+            }
+      }
+    });
+  let newestBid = null;
+  let newestTimestamp = 0;
+
+  allbids.forEach((bid) => {
+    if (bid.activestate === true && bid.expirestate === false) {
+      const bidTimestamp = new Date(bid.createdAt).getTime();
+      if (!partner.quotes.includes(bid._id.toString())) {
+        if (bidTimestamp > newestTimestamp) {
+          newestTimestamp = bidTimestamp;
+          newestBid = bid;
+        }
+      }
+    }
+  });
+  console.log(newestBid);
+    return res.status(200).json({ all, missed,confirmed,awaiting,repairing,ordercompleted,delivered,newestBid});
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  } 
+   
+})
+
+router.get("/getbids", async function(req, res) {
+  try {
+    const allbids = await Quote.find();
+
+    res.status(200).json({ allbids });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "An error occurred while fetching bids" });
+  }
+});
 
 const SEND_INTERVAL = 5000;
 
@@ -233,6 +343,7 @@ let compareTwoArrayOfObjects = (
       )
   );
 };
+
 
 router.get('/quotesdashboard', (req, res) => {
   const subscription ={
@@ -350,30 +461,66 @@ router.post("/getorder", function (req, res) {
 
 
 router.get('/missedbids', async(req,res) => {
-    const Quotes = await Quote.find();
+  try{
+    const Quotes = await Quote.find({});
+    const partnerid = req.query.partnerid;
+    console.log(partnerid);
+    const partner=await Partner.findOne({_id:partnerid})
     const data = [];
     Quotes.forEach((quote) => {
-      if(quote.activestate == false) {
-        data.push(quote);
+      if(quote.activestate === false && quote.expirestate===false) {
+        if(!partner.quotes.includes(quote._id.toString())){
+          data.push(quote);
+        }
       }
     })
     console.log(data);
     res.status(200).json(data);
+  }
+  catch(err){
+     return res.status(400).json({"message":'Internal Server Error'})
+  }
+   
 })
 
-
+router.get('/awaitingbids', async(req,res) => {
+  try{
+    const Quotes = await Quote.find({});
+    const partnerid = req.query.partnerid;
+    // console.log(partnerid);
+    const partner=await Partner.findOne({_id:partnerid})
+    const data = [];
+    Quotes.forEach((quote) => {
+      if(quote.activestate === true && quote.expirestate===false) {
+        if(partner.quotes.includes(quote._id.toString())){
+          quote.quotesbypartner.forEach((quotebid)=>{
+            if(quotebid.partnerid === partnerid){
+              quote = { ...quote };
+              quote._doc.bid=quotebid.amount
+              data.push(quote._doc);
+            }
+          })
+        }
+      }
+    })
+    // console.log(data);
+    res.status(200).json(data);
+  }
+  catch(err){
+     return res.status(400).json({"message":'Internal Server Error'})
+  }
+})
 router.get('/pendingbids', async(req,res) => {
     try {
       const partnerId = req.query.id;
       const partnerdata = await Ordersch.find({partnerid: partnerId});
-      const value = [];
       console.log(partnerdata)
-      const updata = await partnerdata.forEach((data) => {
-        if(data['status'] == 'repairing' && data['delivery']== 'false') {
-          value.push(data);
+      const updata = partnerdata.filter((data) => {
+        if(data['status'] === 'repairing') {
+          return true;
         }
       })
-      res.status(200).json(value);
+      res.status(200).json(updata);
 
     } catch(error) {
       console.log(error);
@@ -384,32 +531,45 @@ router.get("/getquotes",  async(req, res) => {
   try {
     const partnerId = req.query.id;
     const partnerdata = await Ordersch.find({partnerid: partnerId});
-      const value = [];
       console.log(partnerdata)
-      const updata = await partnerdata.forEach((data) => {
-        if(data['status'] == 'no'&& data['delivery']== 'false') {
-          value.push(data);
+      const updata = partnerdata.filter((data) => {
+        if(data['status'] === 'no') {
+          return true;
         }
       })
-      res.status(200).json(value);
+      res.status(200).json(updata);
   } catch(error) {
     console.log(error);
   }
 })
 
+router.get("/deliveredquotes",  async(req, res) => {
+  try {
+    const partnerId = req.query.id;
+    const partnerdata = await Ordersch.find({partnerid: partnerId});
+    console.log(partnerdata)
+    const updata = partnerdata.filter((data) => {
+      if(data['status'] === 'done' && data['delivery']===true) {
+        return true;
+      }
+    })
+      res.status(200).json(updata);
+  } catch(error) {
+    console.log(error);
+  }
+})
 
 router.get("/completedquotes",  async(req, res) => {
   try {
     const partnerId = req.query.id;
     const partnerdata = await Ordersch.find({partnerid: partnerId});
-      const value = [];
-      console.log('hi', partnerdata)
-      const updata = await partnerdata.forEach((data) => {
-        if(data['status'] == 'yes' && data['delivery']== 'false') {
-          value.push(data);
-        }
-      })
-      res.status(200).json(value);
+    console.log(partnerdata)
+    const updata = partnerdata.filter((data) => {
+      if(data['status'] === 'done' && data['delivery']===false) {
+        return true;
+      }
+    })
+      res.status(200).json(updata);
   } catch(error) {
     console.log(error);
   }
