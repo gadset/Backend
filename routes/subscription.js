@@ -30,7 +30,6 @@ router.post('/subscribe', async (req, res, next) => {
       { _id: req.body.partnerid },
       { $set: { endpoint: req.body.subscription }}
     );
-  
     // const payload = JSON.stringify({
     //   title: 'Hello!',
     //   body: 'partner is siginedin.',

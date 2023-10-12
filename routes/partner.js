@@ -33,7 +33,6 @@ router.post('/', function (req, res) {
       }
       res.json({ id: id});
     }
-
     start();
   }) ;
 
