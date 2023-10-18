@@ -2,29 +2,66 @@ const express = require("express");
 const webPush = require ('web-push');
 const SubscriptionModel = require ('../models/subscriptionschema');
 const router = express.Router();
-const publicVapidKey = 'BMQOKdrpuYRNgI3wXtDoQstTJEt1rnO9w6b9KM3MnJek8V4DH72OYNYoACbpveEVg_1snYmI8EZIdJV_5qjfMo4';
-const privateVapidKey = '8xw5QAlfRzN9TcZdUK2rI6zUx5AwBXMC0PbVPngST0E';
+const publicVapidKey = 'BJs-1rAgTehzrIsAOwkqNHiwhTNB2Iudrw5XRzAen9wFcpcvICqVzpxwA7vwdyT1grGNOaKW9kdconwzjnHWWIg';
+const privateVapidKey = 'yRBdMIDs9GKjHqPytBgV0jyYrrMkF_IRbNWRH9kplaI';
 const Partner = require('../models/partnersch');
+const middleware = require('../middleware');
+
+
 //setting vapid keys details
-webPush.setVapidDetails('mailto:patnala.1@iitj.ac.in', publicVapidKey,privateVapidKey);
+
+webPush.setVapidDetails('mailto:geda.1@iitj.ac.in', publicVapidKey,privateVapidKey);
 
 router.post('/subscribe', async (req, res, next) => {
-    const subscription = req.body
-    console.log(subscription)
+  console.log("Hello")
+    const user = req.body.user;
+    const subscription = req.body.subscription;
+    console.log("Sub", subscription)
+    try {
+      // Create a new Subscription document and save it to the database
+      const sub = new SubscriptionModel({
+        user: user, // Assuming you have a 'user' property in your subscription data
+        endpoint: subscription.endpoint,
+        keys: {
+          p256dh: subscription.keys.p256dh,
+          auth: subscription.keys.auth,
+        },
+      });
   
-    // const payload = JSON.stringify({
-    //   title: 'Hello!',
-    //   body: 'It works.',
-    // })
-  
-    // webPush.sendNotification(subscription, payload)
-    //   .then(result => console.log(result))
-    //   .catch(e => console.log(e.stack))
-  
-    res.status(200).json({'success': true})
+      await sub.save();
+      console.log('Subscription saved:', sub);
+      res.status(200).json({ success: true });
+  } catch (error) {
+      console.error('Error saving subscription:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+function sendBidNotification(userId, bidData) {
+  const usercheck = userSubscriptions.has(userId);
+  const subscription = userSubscriptions.get(userId);
+
+  if (!usercheck) {
+    console.error('User not found or not subscribed');
+    return;
+  }
+
+  const payload = JSON.stringify({
+    title: 'New Bid Arrived',
+    body: 'A new bid has been placed on your auction item.',
+    // bidData: bidData,
   });
 
-  router.post('/subscribepartner', async (req, res, next) => {
+  webPush.sendNotification(subscription, payload)
+    .then(() => {
+      console.log('Notification sent successfully');
+    })
+    .catch((error) => {
+      console.error('Error sending notification:', error);
+    });
+}
+
+router.post('/subscribepartner', async (req, res, next) => {
     const subscription = req.body.subscription;
     const result = await Partner.updateOne(
       { _id: req.body.partnerid },
