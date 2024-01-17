@@ -1,0 +1,47 @@
+router.get('/delivered', async(req,res) => {
+  try {
+    const partnerId = req.query.id;
+    const partnerdata = await Ordersch.find({partnerid: partnerId});
+    console.log(partnerdata)
+    const updata = partnerdata.filter((data) => {
+      if(data['status'] === 'done' && data['delivery']===false) {
+        return true;
+      }
+    })
+      res.status(200).json(updata);
+  } catch(error) {
+    console.log(error);
+  }
+})
+
+router.get("/completedquotes",  async(req, res) => {
+  try {
+    const partnerId = req.query.id;
+    const partnerdata = await Ordersch.find({partnerid: partnerId});
+    console.log(partnerdata)
+    const updata = partnerdata.filter((data) => {
+      if(data['status'] === 'done' && data['delivery']===false) {
+        return true;
+      }
+    })
+      res.status(200).json(updata);
+  } catch(error) {
+    console.log(error);
+  }
+})
+
+router.get("/deliveredquotes",  async(req, res) => {
+  try {
+    const partnerId = req.query.id;
+    const partnerdata = await QuotesSche.find({partnerid: partnerId});
+    console.log(partnerdata)
+    const updata = partnerdata.filter((data) => {
+      if(data['status'] === 'done' && data['delivery']===true) {
+        return true;
+      }
+    })
+      res.status(200).json(updata);
+  } catch(error) {
+    console.log(error);
+  }
+})

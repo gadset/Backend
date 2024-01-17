@@ -7,8 +7,8 @@ const privateVapidKey = 'yRBdMIDs9GKjHqPytBgV0jyYrrMkF_IRbNWRH9kplaI';
 const Partner = require('../models/partnersch');
 const middleware = require('../middleware');
 
-
 //setting vapid keys details
+
 
 webPush.setVapidDetails('mailto:geda.1@iitj.ac.in', publicVapidKey,privateVapidKey);
 
@@ -52,6 +52,7 @@ function sendBidNotification(userId, bidData) {
     // bidData: bidData,
   });
 
+  
   webPush.sendNotification(subscription, payload)
     .then(() => {
       console.log('Notification sent successfully');
