@@ -5,12 +5,17 @@ const uniqueValidator = require('mongoose-unique-validator')
 const Schema = mongoose.Schema;
 
 const OrderSchema = new Schema({
+	quoteid : {type : String, required : true},
     partnerid : { type: String, required: true},  //id of partner
 	delivery : { type: String, required: true,},  // delivered or not
-    paymenttotal : {type : Number, required : true}, 
-	paymentdone : {type : Number, required : true},
+    // paymenttotal : {type : Number, required : true}, 
+	// paymentdone : {type : Number, required : true},
+	amount : {type:String,},
+	details : {type : Object,},
+	date : {type : Object,},
     customerid : {type : String, required : true},
-    device : {type : String, required : true},
+    device : {type : String},
+	model : {type : String},
 	issue : {type : Array, required : true},
 	entry : {type : Object, required : true},  // will come after start reparing
 	exit : {type : Object, required : true},   // will come if repairing pending so order is completed now

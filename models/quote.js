@@ -14,6 +14,8 @@ const quoteSchema = new mongoose.Schema({
     // quotesbypartner : {type : Array},
     // createdAt: { type: Date, default: Date.now },
     expirestate: {type:Boolean, default:false, required:true},
+	image : {type : String},
+	description : {type : String},
 });
 
 module.exports = mongoose.model('Quote',quoteSchema);

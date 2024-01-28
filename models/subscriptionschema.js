@@ -8,6 +8,6 @@ const Subscription = new Schema ({
     p256dh: String,
     auth: String,
   },
-  user: {type: String},
+  userId: {type: String},
 });
 module.exports = mongoose.model ('subscription', Subscription);

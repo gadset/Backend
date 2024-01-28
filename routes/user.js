@@ -13,6 +13,8 @@ const privateVapidKey = 'yRBdMIDs9GKjHqPytBgV0jyYrrMkF_IRbNWRH9kplaI';
 const jwt = require('jsonwebtoken');
 const middleware = require('../middleware');
 const { data } = require("cheerio/lib/api/attributes");
+const { sendMail } = require("./Messaging/sendemail");
+const { sendWhatsappMsg } = require("./Messaging/whatsappmsg");
 
 router.get('/u', middleware, async(req, res) => {
   const user = req.userid;
@@ -82,20 +84,23 @@ router.post("/", function (req, res) {
 router.post('/loginCheck', async(req, res)=> {
     try {
       const phone = req.body.number;
-      // console.log(phone);
+      console.log(req.body.number);
       const user = await Customer.findOne({phone: phone});
-      // console.log(user);
+      console.log("user", user);
       if(!user) {
         const newCustomer = new Customer({ phone: phone });
         await newCustomer.save();
-        const token = jwt.sign({ id: newCustomer._id },'Gadset',{expiresIn:36000000},(err,token)=>{
-          if(err) throw err;}	);
-		 return res.status(200).json({message : 'new user', token : token})
-      } else {
-        const token = jwt.sign({ id: user._id },'Gadset',{expiresIn:36000000},(err,token)=>{
+		const token = jwt.sign({ id: newCustomer._id },'Gadset',{expiresIn:'7d'},(err,token)=>{
             if(err) throw err;
             else{
-            return res.status(200).json({message : '', token : token})
+            return res.status(200).json({message : 'new user', token : token, id: newCustomer._id})
+
+		}})
+      } else {
+        const token = jwt.sign({ id: user._id },'Gadset',{expiresIn:'7d'},(err,token)=>{
+            if(err) throw err;
+            else{
+            return res.status(200).json({message : '', token : token, id : user?.id})
 		}
         });
 
@@ -171,8 +176,33 @@ router.post('/sendquote', middleware, async(req, res) => {
       service: req.body.service,
       customerid: req.userid,
       quotesbypartner: [],
+	  image : req.body?.imagefile,
+	  description : req.body?.description
     });
-    console.log(Createquote);
+	// const subscriptions = await SubscriptionSchema.find();
+	const partners = await Partner.find();
+	partners?.forEach((partner)=> {
+		sendWhatsappMsg({
+			templateParams : [`${req.body.device}`, `${req.body.model}`],
+			destination : `+91${partner?.phone}`,
+			campaignName : 'Customer Quote Add - Partner Notification'
+		})
+	})
+// 	subscriptions?.forEach((subscription)=> {
+// 		const payload = JSON.stringify({
+//     	title: `${req.body?.model} - ${req.body?.device} Issue`,
+//     	body: 'A new bid has been placed on your auction item.',
+//   });
+
+  
+//   webPush.sendNotification(subscription, payload)
+//     .then(() => {
+//       console.log('Notification sent successfully');
+//     })
+//     .catch((error) => {
+//       console.error('Error sending notification:', error);
+//     });
+// 	})
     await Createquote.save();
     res.status(200).json({id : Createquote._id, message: 'Created the Quote'});
 	
@@ -214,7 +244,8 @@ router.get("/getquotes",middleware, function (req, res) {
   async function start() {
     const partnerid = req.userid;
     const partnerdata = await Partner.find({_id : partnerid});
-    const objects = await Quote.find({ _id : {$nin : partnerdata[0]['quotes']}});
+	var method = {createdAt  : -1} ;
+    const objects = await Quote.find({ _id : {$nin : partnerdata[0]['quotes']} , activestate : true,  }).sort(method);
     res.json({ objects: objects });
   }
   start();
@@ -237,51 +268,47 @@ let compareTwoArrayOfObjects = (
 };
 
 
+router.get('/quotesdashboard', async(req, res) => {
 
-router.get('/quotesdashboard', (req, res) => {
-  const subscription ={
-     endpoint: req.query.endpoint,
-	// endpoint : "https://fcm.googleapis.com/fcm/send/cBrRXPlbpSs:APA91bFAp-nKI0tEZPjR-0nEKvCfOzdU7P-kKPFS6TKwqFjkLjQbhhNhI9S9W7KvMIXbbciMkcYwkXxzx-gXF1bOJDv5srewYZttxEhsKmv8PohbwD65UZx2KRz-NHvYjHkCUiFaurBx",
-    expirationTime: null,
-    keys: {
-      p256dh: req.query.pdh,
-	// p256dh : "BJgu00RJuRbjjZyJympTMfgNGBsnqY28dtg7YH1tVDN1hmotnGpdYjBzCb-rgiJkwBDO2zAvSRlhYF4Jpks988E",
-   auth: req.query.auth
-	// auth : "LQRx34kcreRalLW_CZDSpQ"
-
-    }
-  }
-
-res.setHeader('Content-Type', 'text/event-stream');
+	res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   const documentId = req.query.id; 
+  const userId = req.query.userid;
 
-console.log("documentId", documentId);
+	const userObj = await Customer.findOne({_id : userId});
+  const subscription = {
+     endpoint: userObj?.endpoint.endpoint,
+    expirationTime: null,
+    keys: {
+      p256dh: userObj?.endpoint.keys.p256dh,
+   auth: userObj?.endpoint.keys.auth
+    }
+  }
   let obj = [];
   const sendLatestData = async() => {
     const objects = await Quote.find({ _id: documentId});
     let data = [] ;
     if(objects[0]) {data = objects[0]["quotesbypartner"];}
-    if(!compareTwoArrayOfObjects(obj, data)){
-      const payload = JSON.stringify({
-        title: 'Quote updated!',
-        body: 'Partner submiited a quote',
-      })
-	  console.log("endpoint", req.query.endpoint);
-      webPush.sendNotification(subscription, payload)
-        .then(result => console.log(result))
-        .catch(e => console.log(e))
+    // if(!compareTwoArrayOfObjects(obj, data)){
+    //   const payload = JSON.stringify({
+    //     title: 'Quote updated!',
+    //     body: 'Partner submitted a quote',
+    //   })
+    //   webPush.sendNotification(subscription, payload)
+    //     // .then(result => console.log(result))
+    //     // .catch(e => console.log(e))
     
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-      obj = data;
-    } 
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    //   obj = data;
+	//   console.log(obj);
+    // } 
   };
 
-  sendLatestData();
-  const interval = setInterval(sendLatestData, 5000);
+  	sendLatestData();
+  	const interval = setInterval(sendLatestData, 10000);
 
   req.on('close', () => {
     clearInterval(interval);
@@ -330,28 +357,30 @@ router.post("/getuser", function (req, res) {
 router.post("/getorder",middleware, function (req, res) {
   async function start() {
     const result = await Customer.find({ _id: req.userid });
-    console.log(result);
     let data = [];
     if(result[0]) { 
       let ndata = result[0]['orders'] 
       for(let i=0; i<ndata.length ; i++){
-        const par = await Partner.find({ _id: ndata[0].partnerid});
-        const qu = await Quote.find({_id : ndata[0].quoteid});
-        let d = {
-          name : par[0]["name"],
+		const order = await Ordersch.find({_id : ndata[i] });
+		if(order.length > 0){
+			const par = await Partner.find({ _id: order[0].partnerid});
+        	const qu = await Quote.find({_id : order[0].quoteid});
+        	let d = {
+				partnerid : par[0]?._id,
+          	name : par[0]["name"],
           email : par[0]["emailId"],
           address : par[0]["address"],
           phone : par[0]['phone'],
-          amount : ndata[i]['amount'],
-          warranty : ndata[i]['warranty'],
-          service : ndata[i]['service'],
+          amount : order[0]?.details.amount,
+		  details : order[0]?.details,
           model : qu[0]['model'],
           device : qu[0]['device'],
-          date : ndata[i]['date'],
+          date : order[0]['date'],
           issues : qu[0]['issu'],
-          payment : ndata[i]['payment'],
         }
         data.push(d);
+
+		}
       }
     }
     res.json({ data: data, message: "orders fetched successful" });
@@ -453,12 +482,11 @@ router.get("/getbids", async function(req, res) {
 });
 
 router.get('/getquotesdata', middleware, async(req, res) => {
-  console.log('entered')
   const user = req.userid;
   console.log(user);
   try {
-      const data = await Quote.find({ customerid: user });
-      console.log(data);
+	var method = {createdAt  : -1} ;
+      const data = await Quote.find({ customerid: user, activestate : true }).sort(method);
       res.status(200).json(data); 
   } catch (error) {
       console.error(error);
@@ -477,6 +505,58 @@ router.get('/bidstodisplay', async(req, res) => {
   }
 })
 
+
+router.post('/addAddress',middleware,  async (req, res) => {
+  try {
+    const { addressName, newAddress, name } = req.body;
+	const customerId = req.userid;
+    // Find the customer by ID
+    const customer = await Customer.findById(customerId);
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    customer.addresses.push({ name: addressName, address: newAddress });
+	if(name) {
+		customer.name = name ;
+	}
+    const updatedCustomer = await customer.save();
+	
+    res.status(200).json({updatedCustomer});
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+router.get('/getAddresses', middleware, async (req, res) => {
+  try {
+    	const customerId = req.userid;
+
+
+    // Find the customer by ID
+    const customer = await Customer.findById(customerId);
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Extract and send the addresses
+    const addresses = customer.addresses;
+	const name = customer.name;
+	const phone = customer.phone; 
+    res.status(200).json({ addresses, name, phone });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
+router.get('/sendmail', async(req, res) => {
+sendMail('patnala.1@alumni.iitj.ac.in');
+res.status(200).json({message : 'thankyou'});
+})
 
 
 module.exports = router;

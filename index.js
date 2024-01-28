@@ -34,7 +34,7 @@ const mongopart = require('./routes/partner')
 
 app.use(express.json({ extended: false }));
 
-app.post('/quotes', mongoPractice.createQuote);
+// app.post('/quotes', mongoPractice.createQuote);
 app.use('/partner',require('./routes/partner'));
 app.use('/users',require("./routes/user.js"));
 //app.use("/", require("./routes/phones.js"));
