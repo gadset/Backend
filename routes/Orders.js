@@ -8,6 +8,7 @@ const middleware = require('../middleware');
 const webPush = require ('web-push');
 const { sendWhatsappMsg } = require('./Messaging/whatsappmsg');
 const { sendMail } = require('./Messaging/sendemail');
+const { sendmessage } = require('./Messaging/sendmsgtwilio');
 const router = express.Router();
 
 router.get('/getorders',middleware, function(req,res){
@@ -27,6 +28,9 @@ router.post('/saveorder',middleware, function (req, res) {
 	try{
 
       let id = "";
+
+	  const partner1 = await Partner.findOne( { _id: req.body.partnerid });
+
 	const createorder = new Order({
      	partnerid : req.body.partnerid,  //id of partner
 		delivery : false,  // delivered or not
@@ -37,12 +41,14 @@ router.post('/saveorder',middleware, function (req, res) {
 		amount : req.body?.amount,
     	device : req.body.orderdata?.device,
 		model : req.body.orderdata?.model,
-	issue : req.body.orderdata?.issues,
-	entry : {},  // will come after start reparing
-	exit : {},   // will come if repairing pending so order is completed now
-	deliveryform : {}, // order delivered to the customer
-	status : "no", 
-      });
+		issue : req.body.orderdata?.issues,
+		entry : {},  // will come after start reparing
+		exit : {},   // will come if repairing pending so order is completed now
+		deliveryform : {}, // order delivered to the customer
+		status : "no", 
+		orderNo : 1000 + partner1.orders.length,
+    });
+
       const result = await createorder.save();
       id = result['_id'];
 
@@ -52,26 +58,42 @@ router.post('/saveorder',middleware, function (req, res) {
       { _id: req.body.id },
       { $push: { orders: id } }
     );
-	sendWhatsappMsg({
-		templateParams : [`${req.body.details?.deliverytype}`, `${req.body.details?.warranty}` , `${req.body.amount}`],
-		destination : `+91${customer1?.phone}`,
-		campaignName : 'Order Succesfully Created - Customer'
-	})
+	// sendWhatsappMsg({
+	// 	templateParams : [`${req.body.details?.deliverytype}`, `${req.body.details?.warranty}` , `${req.body.amount}`],
+	// 	destination : `+91${customer1?.phone}`,
+	// 	campaignName : 'Order Succesfully Created - Customer'
+	// })
 
+	// sendmessage({
+	// 	tophone :  `+91${customer1?.phone}`,
+	// 	details : `Your order is being placed with the details , ${req.body.details?.deliverytype}, ${req.body.details?.warranty}, ${req.body.amount}`
+	// })
 
 
 	//update the partner orders array 
-	const partner1 = await Partner.findOne( { _id: req.body.partnerid });
 	await Partner.updateOne(
       { _id: req.body.partnerid },
       { $push: { orders: id } }
     );
-	sendWhatsappMsg({
-		templateParams : [`${req.body.details?.deliverytype}`, `${req.body.details?.warranty}` ,
-		 `${req.body.amount}` , `${req.body.details?.quality}`],
-		destination : `+91${partner1?.phone}`,
-		campaignName : 'Order Placed - Partner'
-	})
+
+	sendMail({
+			tomail : 'developergadset@gmail.com', 
+			subject : "New order created by customer", 
+			details : `details of the order : partner name : ${partner1?.name} for device :  ${req.body.orderdata?.device} and ${req.body.orderdata?.model}`
+		})
+
+	// sendWhatsappMsg({
+	// 	templateParams : [`${req.body.details?.deliverytype}`, `${req.body.details?.warranty}` ,
+	// 	 `${req.body.amount}` , `${req.body.details?.quality}`],
+	// 	destination : `+91${partner1?.phone}`,
+	// 	campaignName : 'Order Placed - Partner'
+	// });
+
+	// sendmessage({
+	// 	tophone :  `+91${partner1?.phone}`,
+	// 	details : `Your order is being placed with the details , ${req.body.details?.deliverytype}, ${req.body.details?.warranty}, ${req.body.amount}`
+	// })
+
 
 	sendMail({
 		tomail : partner1?.emailId,
@@ -104,7 +126,7 @@ router.post('/saveorder',middleware, function (req, res) {
 // 	});
 
 
-      res.json({ message : "saved succesfully", id: id});
+      res.json({ message : "saved succesfully", id: id, partnerphone : partner1?.phone, customerphone : customer1?.phone});
 	  }
 	  catch (error){
 res.json({ message : "not saved", id: id});

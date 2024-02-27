@@ -9,6 +9,7 @@ const router = express.Router();
 const {createSecretToken} = require('./utils/secretToken')
 const webPush = require ('web-push');
 const { sendWhatsappMsg } = require('./Messaging/whatsappmsg');
+const { sendmessage } = require('./Messaging/sendmsgtwilio');
 // mongoose.connect('mongodb+srv://kiran333:kiran333@cluster0.h8q8rtb.mongodb.net/?retryWrites=true&w=majority')
 // .then(()=>{
 //     console.log('Connected to database!')
@@ -17,8 +18,14 @@ const { sendWhatsappMsg } = require('./Messaging/whatsappmsg');
 // });
 
 router.get('/getId', middleware, async(req, res) => {
-  const user = req.userid;
+if(req.isTokenExpired){
+	res.json({isTokenExpired : true})
+}
+else{
+const user = req.userid;
   res.json({id : user})
+}
+ 
 })
 
 
@@ -95,7 +102,6 @@ router.post("/submitquote",middleware, function (req, res) {
     const partnerupdate = await Partner.updateOne({ _id: req.userid } ,
       { $push: { quotes: req.body.id  } }
     );
-    console.log(partnerupdate);
     const data = {
       amount: req.body.qualities,
       partnerid: req.userid,
@@ -106,35 +112,42 @@ router.post("/submitquote",middleware, function (req, res) {
     };
     const res1 = await Quote.find({ _id: req.body.id })
     let message = "";
-	console.log(res1);
     if(res1['activestate']===false){
       message = "Sorry, time for bid is closed";
     }
     else{
+		try{
+
       const result = await Quote.updateOne(
         { _id: req.body.id },
         { $push: { quotesbypartner: data } }
       );
       const customer = await Customer.find({_id : res1[0].customerid});
-	  console.log("customer", customer);
-	  sendWhatsappMsg({
-		templateParams : [`${res1[0].device}`, `${res1[0].model}`],
-		destination : `+91${customer[0].phone}`,
-		campaignName : 'Partner added bid - Customer Notification'
-	  })
+	//   sendWhatsappMsg({
+	// 	templateParams : [`${res1[0].device}`, `${res1[0].model}`],
+	// 	destination : `+91${customer[0].phone}`,
+	// 	campaignName : 'Partner added bid - Customer Notification'
+	//   })
+	//   sendmessage({
+	// 	tophone : `+91${customer[0].phone}`,
+	// 	details : 'One of our vendors has submitted a bid based on your request. To check the bid details please open the link. tamboola.in'
+	//   })
 	  const payload = JSON.stringify({
         title: 'Quote updated!',
         body: 'Partner submitted a quote',
       })
-	  console.log(customer[0].endpoint);
 	  
     //   webPush.sendNotification(customer[0].endpoint, payload)
         // .then(result => console.log(result))
         // .catch(e => console.log(e))
 
-      message = "successfully submited quote";
+      message = "successful";
+	   res.status(200).json({ message: message, customerphone :  customer[0].phone, device : res1[0].device , model : res1[0].model });
+	  }
+	  catch(err){
+		res.status(400).json({message : 'error occured'});
+	  }
     }
-    res.status(200).json({ message: message });
   }
   start();
 });
@@ -146,10 +159,10 @@ router.get("/getpartnerdata",middleware, async function (req,res){
   try {
     const partner = await Partner.findOne({ _id: partnerid }); 
     const allbids = await Quote.find({});
-    const allorders = partner['orders'];
-    if (!partner) {
+	if (!partner) {
       return res.status(404).json({ message: 'Partner not found' });
     }
+    const allorders = partner?.orders || [];
     var all = 0;
     var missed = 0;
     var confirmed = await Ordersch.find({partnerid : partnerid , status : 'no', delivery : 'false'}).count() ;
@@ -190,7 +203,7 @@ router.get("/getpartnerdata",middleware, async function (req,res){
       }
     }
   });
-  console.log(newestBid);
+
     return res.status(200).json({ all, missed,confirmed,awaiting,repairing,ordercompleted,delivered,newestBid});
   } catch (error) {
     console.error(error);
@@ -204,7 +217,6 @@ router.get('/pendingbids', async(req,res) => {
     try {
       const partnerId = req.query.id;
       const partnerdata = await Ordersch.find({partnerid: partnerId});
-      console.log(partnerdata)
       const updata = partnerdata.filter((data) => {
         if(data['status'] === 'repairing') {
           return true;

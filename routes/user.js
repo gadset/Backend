@@ -15,10 +15,16 @@ const middleware = require('../middleware');
 const { data } = require("cheerio/lib/api/attributes");
 const { sendMail } = require("./Messaging/sendemail");
 const { sendWhatsappMsg } = require("./Messaging/whatsappmsg");
+const { sendmessage } = require("./Messaging/sendmsgtwilio");
 
 router.get('/u', middleware, async(req, res) => {
-  const user = req.userid;
+if(req.isTokenExpired){
+	res.json({isTokenExpired : true})
+}
+else{
+const user = req.userid;
   res.json({user})
+}
 })
 
 router.post('/getbidsfordevice' ,middleware, async(req, res) => {
@@ -180,14 +186,6 @@ router.post('/sendquote', middleware, async(req, res) => {
 	  description : req.body?.description
     });
 	// const subscriptions = await SubscriptionSchema.find();
-	const partners = await Partner.find();
-	partners?.forEach((partner)=> {
-		sendWhatsappMsg({
-			templateParams : [`${req.body.device}`, `${req.body.model}`],
-			destination : `+91${partner?.phone}`,
-			campaignName : 'Customer Quote Add - Partner Notification'
-		})
-	})
 // 	subscriptions?.forEach((subscription)=> {
 // 		const payload = JSON.stringify({
 //     	title: `${req.body?.model} - ${req.body?.device} Issue`,
@@ -204,7 +202,28 @@ router.post('/sendquote', middleware, async(req, res) => {
 //     });
 // 	})
     await Createquote.save();
-    res.status(200).json({id : Createquote._id, message: 'Created the Quote'});
+	const partners = await Partner.find();
+	let partnernumber = [];
+	partners?.forEach((partner)=> {
+		// sendWhatsappMsg({
+		// 	templateParams : [`${req.body.device}`, `${req.body.model}`],
+		// 	destination : `+91${partner?.phone}`,
+		// 	campaignName : 'Customer Quote Add - Partner Notification'
+		// })
+		partnernumber.push(partner?.phone);
+
+		// sendmessage({
+		// 	details : `This is to inform you that a new quote request has been added to the platform for ${req.body.model} ${req.body.device}.please quote immediately so that u can participate in the bidding process`,
+		// 	tophone : `+91${partner?.phone}`
+		// })
+
+		sendMail({
+			tomail : 'developergadset@gmail.com', 
+			subject : "New quote created by customer", 
+			details : `details of the quote : device - model : ${req.body.device} , ${req.body.model}.`
+		})
+	})
+    res.status(200).json({id : Createquote._id, message: 'Created the Quote', partnernumber});
 	
   } catch(err) {
     console.error('Error:', err.message);
@@ -319,10 +338,9 @@ router.get('/quotesdashboard', async(req, res) => {
 
 router.post("/getquotesbyid", function (req, res) {
   async function start() {
-    console.log("started here");
     console.log(req.body.quoteid);
     const objects = await Quote.find({ _id: req.body.quoteid });
-    console.log(objects[0]);
+    // console.log(objects[0]);
     let data = [] 
     if(objects[0]) { data = objects[0]["quotesbypartner"]}
     res.json({ objects: data });
@@ -337,7 +355,7 @@ router.post("/saveorder", function (req, res) {
       { _id: req.body.id },
       { $push: { orders: req.body.orderdata } }
     );
-    console.log(result);
+    // console.log(result);
     res.json({ message: "Check orders page" });
   }
 
@@ -358,7 +376,7 @@ router.post("/getorder",middleware, function (req, res) {
   async function start() {
     const result = await Customer.find({ _id: req.userid });
     let data = [];
-    if(result[0]) { 
+    if(result[0]) {
       let ndata = result[0]['orders'] 
       for(let i=0; i<ndata.length ; i++){
 		const order = await Ordersch.find({_id : ndata[i] });
@@ -403,7 +421,7 @@ router.get('/missedbids', async(req,res) => {
         }
       }
     })
-    console.log(data);
+    // console.log(data);
     res.status(200).json(data);
   }
   catch(err){
@@ -483,7 +501,7 @@ router.get("/getbids", async function(req, res) {
 
 router.get('/getquotesdata', middleware, async(req, res) => {
   const user = req.userid;
-  console.log(user);
+//   console.log(user);
   try {
 	var method = {createdAt  : -1} ;
       const data = await Quote.find({ customerid: user, activestate : true }).sort(method);
@@ -559,5 +577,9 @@ res.status(200).json({message : 'thankyou'});
 })
 
 
+router.get('/sendmessage', async(req,res) => {
+	sendmessage();
+	res.status(200).json({message : "done"});
+})
 module.exports = router;
 

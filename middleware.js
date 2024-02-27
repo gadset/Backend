@@ -10,9 +10,17 @@ module.exports=function(req,res,next){
 		// return next(error);
         return res.status(400).send('Token Not Found');
        }
-       let decode=jwt.verify(token,'Gadset')
-       req.userid = decode.id;
-       next();
+
+       jwt.verify(token, 'Gadset', function(err, decoded) {
+            if (err) {
+                req.isTokenExpired = true;
+				next();
+            } else {
+                req.userid = decoded.id;
+                next();
+            }
+        });
+
     }
     catch(err){
         console.log(err);

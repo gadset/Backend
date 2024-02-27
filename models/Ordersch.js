@@ -10,6 +10,7 @@ const OrderSchema = new Schema({
 	delivery : { type: String, required: true,},  // delivered or not
     // paymenttotal : {type : Number, required : true}, 
 	// paymentdone : {type : Number, required : true},
+	orderNo : {type : Number},
 	amount : {type:String,},
 	details : {type : Object,},
 	date : {type : Object,},
