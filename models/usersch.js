@@ -12,6 +12,8 @@ const customerSchema = new Schema({
     phone : {type : Number, required : true},
     address : {type : Object},
     orders : {type: Array},
+	endpoint : {type : Object},
+	addresses : {type : Array},
 });
 
 customerSchema.plugin(uniqueValidator);

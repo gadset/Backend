@@ -4,20 +4,62 @@ const Customer = require("../models/usersch");
 const Quote = require("../models/quote");
 const router = express.Router();
 const Partner = require("../models/partnersch");
-const QuotesSche = require('../models/Ordersch');
+const QuotesSche = require('../models/quote');
 const webPush = require ('web-push');
 const Ordersch = require("../models/Ordersch");
-const publicVapidKey = 'BMQOKdrpuYRNgI3wXtDoQstTJEt1rnO9w6b9KM3MnJek8V4DH72OYNYoACbpveEVg_1snYmI8EZIdJV_5qjfMo4';
-const privateVapidKey = '8xw5QAlfRzN9TcZdUK2rI6zUx5AwBXMC0PbVPngST0E';
+const SubscriptionSchema = require("../models/subscriptionschema")
+const publicVapidKey = 'BJs-1rAgTehzrIsAOwkqNHiwhTNB2Iudrw5XRzAen9wFcpcvICqVzpxwA7vwdyT1grGNOaKW9kdconwzjnHWWIg';
+const privateVapidKey = 'yRBdMIDs9GKjHqPytBgV0jyYrrMkF_IRbNWRH9kplaI';
+const jwt = require('jsonwebtoken');
+const middleware = require('../middleware');
+const { data } = require("cheerio/lib/api/attributes");
+const { sendMail } = require("./Messaging/sendemail");
+const { sendWhatsappMsg } = require("./Messaging/whatsappmsg");
+const { sendmessage } = require("./Messaging/sendmsgtwilio");
 
-//setting vapid keys details
-webPush.setVapidDetails('mailto:patnala.1@iitj.ac.in', publicVapidKey,privateVapidKey);
-// mongoose.connect('mongodb+srv://kiran333:kiran333@cluster0.h8q8rtb.mongodb.net/?retryWrites=true&w=majority')
-// .then(()=>{
-//     console.log('Connected to database!')
-// }).catch(()=>{
-//     console.log('Connection failed')
-// });
+router.get('/u', middleware, async(req, res) => {
+if(req.isTokenExpired){
+	res.json({isTokenExpired : true})
+}
+else{
+const user = req.userid;
+  res.json({user})
+}
+})
+
+router.post('/getbidsfordevice' ,middleware, async(req, res) => {
+  const user = req.userid;
+  const deviceid = req.body.id;
+  try {
+    const data = await Quote.findById(deviceid);
+    sendBidNotification(user);
+    res.status(200).json({data})
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+})
+
+async function sendBidNotification(user) {
+  
+  const subscription = await SubscriptionSchema.find({user : user})
+
+
+  const payload = JSON.stringify({
+    title: 'New Bid Arrived',
+    body: 'A new bid has been placed on your auction item.',
+    // bidData: bidData,
+  });
+
+  webPush.sendNotification(subscription, payload)
+    .then(() => {
+      console.log('Notification sent successfully');
+    })
+    .catch((error) => {
+      console.error('Error sending notification:', error);
+    });
+}
+
 
 router.post("/", function (req, res) {
   async function start() {
@@ -33,7 +75,7 @@ router.post("/", function (req, res) {
         orders : [],
       });
       const result = await createdUser.save();
-      console.log(result["_id"]);
+      // console.log(result["_id"]);
       id = result['_id'];
     }
     else{
@@ -43,6 +85,74 @@ router.post("/", function (req, res) {
   }
   start();
 });
+
+
+router.post('/loginCheck', async(req, res)=> {
+    try {
+      const phone = req.body.number;
+      console.log(req.body.number);
+      const user = await Customer.findOne({phone: phone});
+      console.log("user", user);
+      if(!user) {
+        const newCustomer = new Customer({ phone: phone });
+        await newCustomer.save();
+		const token = jwt.sign({ id: newCustomer._id },'Gadset',{expiresIn:'7d'},(err,token)=>{
+            if(err) throw err;
+            else{
+            return res.status(200).json({message : 'new user', token : token, id: newCustomer._id})
+
+		}})
+      } else {
+        const token = jwt.sign({ id: user._id },'Gadset',{expiresIn:'7d'},(err,token)=>{
+            if(err) throw err;
+            else{
+            return res.status(200).json({message : '', token : token, id : user?.id})
+		}
+        });
+
+		//  return res.status(200).json({message : 'customer identified successfully'})
+      }
+
+    } catch(error) {
+      res.json({'message': error})
+    }
+})
+
+router.post('/addname',middleware, async(req,res) => {
+    const {name} = req.body;
+    console.log(name);
+    try {
+      const UpdatedUser = await Customer.findByIdAndUpdate(
+        req.userid,
+        {name: name},
+        {new: true}
+      )
+      if(UpdatedUser) {
+        console.log(UpdatedUser);
+        res.status(200).json({UpdatedUser});
+      }
+      else {
+        res.status(200).json({message: 'user not found'})
+      }
+    } catch(error) {
+      res.json({error})
+    }
+})
+
+router.get('/profile', middleware, async(req, res) => {
+  try{
+    const user = await Customer.findOne({_id : req.userid});
+    console.log(req.userid)
+    if(user) {
+      console.log(user);
+      res.status(200).json({user})
+    } else {
+      res.json({message: 'No user found'})
+    }
+  } catch(err) {
+    res.status(400).json({err})
+  }
+})
 
 router.post("/setaddress", function (req, res) {
   async function start() {
@@ -56,8 +166,11 @@ router.post("/setaddress", function (req, res) {
   start();
 });
 
-router.post("/sendquote", function (req, res) {
-  async function start() {
+
+
+
+router.post('/sendquote', middleware, async(req, res) => {
+  try {
     const Createquote = new Quote({
       issu: req.body.issue,
       model: req.body.model,
@@ -67,79 +180,91 @@ router.post("/sendquote", function (req, res) {
       quality: req.body.quality,
       warranty: req.body.warranty,
       service: req.body.service,
-      customerid: req.body.customerid,
+      customerid: req.userid,
       quotesbypartner: [],
+	  image : req.body?.imagefile,
+	  description : req.body?.description
     });
-    const result = await Createquote.save();
-    console.log("/sendquotedone");
-    // const timerid = setTimeout(async() => {
-    //   console.log("active state changed");
-    //    await Quote.updateOne(
-    //     { _id: result["_id"] },
-    //     { $set: { activestate: true } }
-    //   );
-    // }, 60000);\
-    const payload = JSON.stringify({
-      title: 'New quote',
-      body: 'Consumer added Quoted a quote',
-    })
-    res.json({ id: result["_id"], message: "created the quote" });
-    const partners = await Partner.find();
-    console.log(partners);
-    partners.forEach(async (data)=> {
-      webPush.sendNotification(data.endpoint, payload)
-        .then(result => console.log(result))
-        .catch(e => console.log(e.stack))
-    })
+	// const subscriptions = await SubscriptionSchema.find();
+// 	subscriptions?.forEach((subscription)=> {
+// 		const payload = JSON.stringify({
+//     	title: `${req.body?.model} - ${req.body?.device} Issue`,
+//     	body: 'A new bid has been placed on your auction item.',
+//   });
+
+  
+//   webPush.sendNotification(subscription, payload)
+//     .then(() => {
+//       console.log('Notification sent successfully');
+//     })
+//     .catch((error) => {
+//       console.error('Error sending notification:', error);
+//     });
+// 	})
+    await Createquote.save();
+	const partners = await Partner.find();
+	let partnernumber = [];
+	partners?.forEach((partner)=> {
+		// sendWhatsappMsg({
+		// 	templateParams : [`${req.body.device}`, `${req.body.model}`],
+		// 	destination : `+91${partner?.phone}`,
+		// 	campaignName : 'Customer Quote Add - Partner Notification'
+		// })
+		partnernumber.push(partner?.phone);
+
+		// sendmessage({
+		// 	details : `This is to inform you that a new quote request has been added to the platform for ${req.body.model} ${req.body.device}.please quote immediately so that u can participate in the bidding process`,
+		// 	tophone : `+91${partner?.phone}`
+		// })
+
+		sendMail({
+			tomail : 'developergadset@gmail.com', 
+			subject : "New quote created by customer", 
+			details : `details of the quote : device - model : ${req.body.device} , ${req.body.model}.`
+		})
+	})
+    res.status(200).json({id : Createquote._id, message: 'Created the Quote', partnernumber});
+	
+  } catch(err) {
+    console.error('Error:', err.message);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
-  start();
+})
+
+
+router.get("/getallbids", async function(req, res) {
+  try {
+    const partnerid = req.query.partnerid;
+    console.log(partnerid);
+    const allbids = await Quote.find({ activestate: true, expirestate: false });
+    const partner = await Partner.findOne({ _id: partnerid });
+    const filteredBids = allbids.filter((bid) => {
+      return !partner.quotes.includes(bid._id.toString());
+    });
+    res.status(200).json({ allbids: filteredBids });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "An error occurred while fetching bids" });
+  }
 });
 
+router.get("/getbids", async function(req, res) {
+  try {
+    const allbids = await Quote.find();
 
-router.post("/submitquote", function (req, res) {
-  async function start() {
-    console.log(req.body);
-    const partnerdata = await Partner.find({ _id: req.body.partnerid });
-    const partnerupdate = await Partner.updateOne({ _id: req.body.partnerid } ,
-      { $push: { quotes: req.body.id  } }
-    );
-
-    console.log(partnerdata);
-    const data = {
-      amount: req.body.amount,
-      partnerid: req.body.partnerid,
-      rating: partnerdata[0]["rating"],
-      percentage: partnerdata[0]["percentage"],
-      warranty: req.body.warranty,
-      service: req.body.service,
-    };
-    const res1 = await Quote.find({ _id: req.body.id })
-    let message = "";
-    if(res1['activestate']===false){
-      message = "Sorry, time for bid is closed";
-    }
-    else{
-      const result = await Quote.updateOne(
-        { _id: req.body.id },
-        { $push: { quotesbypartner: data } }
-      );
-      console.log(result);
-      message = "successfully submited";
-    }
-    res.status(200).json({ message: message });
+    res.status(200).json({ allbids });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "An error occurred while fetching bids" });
   }
-  start();
 });
-
-router.get("/getquotes", function (req, res) {
+router.get("/getquotes",middleware, function (req, res) {
+// console.log("userid is there", req.userid);
   async function start() {
-    const partnerid = req.query.id;
+    const partnerid = req.userid;
     const partnerdata = await Partner.find({_id : partnerid});
-    const objects = await Quote.find({ _id : {$nin : partnerdata[0]['quotes']}});
-    // console.log(objects);
-    // for await (const doc of objects) {
-    //   console.log(doc);
-    // }
+	var method = {createdAt  : -1} ;
+    const objects = await Quote.find({ _id : {$nin : partnerdata[0]['quotes']} , activestate : true,  }).sort(method);
     res.json({ objects: objects });
   }
   start();
@@ -162,44 +287,47 @@ let compareTwoArrayOfObjects = (
 };
 
 
-router.get('/quotesdashboard', (req, res) => {
-  const subscription ={
-    endpoint: req.query.endpoint,
-    expirationTime: null,
-    keys: {
-      p256dh: req.query.pdh,
-      auth: req.query.auth
-    }
-  }
-  const documentId = req.query.id; 
-  res.setHeader('Content-Type', 'text/event-stream');
+router.get('/quotesdashboard', async(req, res) => {
+
+	res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('Access-Control-Allow-Origin', '*');
+
+  const documentId = req.query.id; 
+  const userId = req.query.userid;
+
+	const userObj = await Customer.findOne({_id : userId});
+  const subscription = {
+     endpoint: userObj?.endpoint.endpoint,
+    expirationTime: null,
+    keys: {
+      p256dh: userObj?.endpoint.keys.p256dh,
+   auth: userObj?.endpoint.keys.auth
+    }
+  }
   let obj = [];
   const sendLatestData = async() => {
     const objects = await Quote.find({ _id: documentId});
-    console.log(objects[0]);
     let data = [] ;
     if(objects[0]) {data = objects[0]["quotesbypartner"];}
-    console.log(obj);
-    console.log(data);
-    if(!compareTwoArrayOfObjects(obj, data)){
-      const payload = JSON.stringify({
-        title: 'Quote updated!',
-        body: 'Partner Quoted a quote',
-      })
-      webPush.sendNotification(subscription, payload)
-        .then(result => console.log(result))
-        .catch(e => console.log(e.stack))
+    // if(!compareTwoArrayOfObjects(obj, data)){
+    //   const payload = JSON.stringify({
+    //     title: 'Quote updated!',
+    //     body: 'Partner submitted a quote',
+    //   })
+    //   webPush.sendNotification(subscription, payload)
+    //     // .then(result => console.log(result))
+    //     // .catch(e => console.log(e))
     
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-      obj = data;
-    } 
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    //   obj = data;
+	//   console.log(obj);
+    // } 
   };
 
-  sendLatestData();
-  const interval = setInterval(sendLatestData, 5000);
+  	sendLatestData();
+  	const interval = setInterval(sendLatestData, 10000);
 
   req.on('close', () => {
     clearInterval(interval);
@@ -210,10 +338,9 @@ router.get('/quotesdashboard', (req, res) => {
 
 router.post("/getquotesbyid", function (req, res) {
   async function start() {
-    console.log("started here");
     console.log(req.body.quoteid);
     const objects = await Quote.find({ _id: req.body.quoteid });
-    console.log(objects[0]);
+    // console.log(objects[0]);
     let data = [] 
     if(objects[0]) { data = objects[0]["quotesbypartner"]}
     res.json({ objects: data });
@@ -223,13 +350,15 @@ router.post("/getquotesbyid", function (req, res) {
 
 router.post("/saveorder", function (req, res) {
   async function start() {
+	let data = req.body.orderdata ; 
     const result = await Customer.updateOne(
       { _id: req.body.id },
       { $push: { orders: req.body.orderdata } }
     );
-    console.log(result);
+    // console.log(result);
     res.json({ message: "Check orders page" });
   }
+
   start();
 });
 
@@ -243,31 +372,33 @@ router.post("/getuser", function (req, res) {
   start();
  })
 
-router.post("/getorder", function (req, res) {
+router.post("/getorder",middleware, function (req, res) {
   async function start() {
-    const result = await Customer.find({ _id: req.body.id });
-    console.log(result);
+    const result = await Customer.find({ _id: req.userid });
     let data = [];
-    if(result[0]) { 
+    if(result[0]) {
       let ndata = result[0]['orders'] 
       for(let i=0; i<ndata.length ; i++){
-        const par = await Partner.find({ _id: ndata[0].partnerid});
-        const qu = await Quote.find({_id : ndata[0].quoteid});
-        let d = {
-          name : par[0]["name"],
+		const order = await Ordersch.find({_id : ndata[i] });
+		if(order.length > 0){
+			const par = await Partner.find({ _id: order[0].partnerid});
+        	const qu = await Quote.find({_id : order[0].quoteid});
+        	let d = {
+				partnerid : par[0]?._id,
+          	name : par[0]["name"],
           email : par[0]["emailId"],
           address : par[0]["address"],
           phone : par[0]['phone'],
-          amount : ndata[i]['amount'],
-          warranty : ndata[i]['warranty'],
-          service : ndata[i]['service'],
+          amount : order[0]?.details.amount,
+		  details : order[0]?.details,
           model : qu[0]['model'],
           device : qu[0]['device'],
-          date : ndata[i]['date'],
+          date : order[0]['date'],
           issues : qu[0]['issu'],
-          payment : ndata[i]['payment'],
         }
         data.push(d);
+
+		}
       }
     }
     res.json({ data: data, message: "orders fetched successful" });
@@ -277,87 +408,70 @@ router.post("/getorder", function (req, res) {
 
 
 router.get('/missedbids', async(req,res) => {
-    const Quotes = await Quote.find();
+  try{
+    const Quotes = await Quote.find({});
+    const partnerid = req.query.partnerid;
+    console.log(partnerid);
+    const partner=await Partner.findOne({_id:partnerid})
     const data = [];
     Quotes.forEach((quote) => {
-      if(quote.activestate == false) {
-        data.push(quote);
+      if(quote.activestate === false && quote.expirestate===false) {
+        if(!partner.quotes.includes(quote._id.toString())){
+          data.push(quote);
+        }
       }
     })
-    console.log(data);
+    // console.log(data);
     res.status(200).json(data);
+  }
+  catch(err){
+     return res.status(400).json({"message":'Internal Server Error'})
+  }
+   
 })
 
-
-router.get('/pendingbids', async(req,res) => {
-    try {
-      const partnerId = req.query.id;
-      const partnerdata = await Ordersch.find({partnerid: partnerId});
-      const value = [];
-      console.log(partnerdata)
-      const updata = await partnerdata.forEach((data) => {
-        if(data['status'] == 'repairing' && data['delivery']== 'false') {
-          value.push(data);
+router.get('/awaitingbids', async(req,res) => {
+  try{
+    const Quotes = await Quote.find({});
+    const partnerid = req.query.partnerid;
+    // console.log(partnerid);
+    const partner=await Partner.findOne({_id:partnerid})
+    const data = [];
+    Quotes.forEach((quote) => {
+      if(quote.activestate === true && quote.expirestate===false) {
+        if(partner.quotes.includes(quote._id.toString())){
+          quote.quotesbypartner.forEach((quotebid)=>{
+            if(quotebid.partnerid === partnerid){
+              quote = { ...quote };
+              quote._doc.bid=quotebid.amount
+              data.push(quote._doc);
+            }
+          })
         }
-      })
-      res.status(200).json(value);
-
-    } catch(error) {
-      console.log(error);
-    }
-})
-
-router.get("/getquotes",  async(req, res) => {
-  try {
-    const partnerId = req.query.id;
-    const partnerdata = await Ordersch.find({partnerid: partnerId});
-      const value = [];
-      console.log(partnerdata)
-      const updata = await partnerdata.forEach((data) => {
-        if(data['status'] == 'no'&& data['delivery']== 'false') {
-          value.push(data);
-        }
-      })
-      res.status(200).json(value);
-  } catch(error) {
-    console.log(error);
+      }
+    })
+    // console.log(data);
+    res.status(200).json(data);
+  }
+  catch(err){
+     return res.status(400).json({"message":'Internal Server Error'})
   }
 })
+// router.get("/getquotes",middleware,  async(req, res) => {
+//   try {
+//     const partnerId = req.userid;
+//     const partnerdata = await Ordersch.find({partnerid: partnerId});
+//       const updata = partnerdata.filter((data) => {
+//         if(data['status'] === 'no') {
+//           return true;
+//         }
+//       })
+//       res.status(200).json(updata);
+//   } catch(error) {
+//     console.log(error);
+//   }
+// })
 
-
-router.get("/completedquotes",  async(req, res) => {
-  try {
-    const partnerId = req.query.id;
-    const partnerdata = await Ordersch.find({partnerid: partnerId});
-      const value = [];
-      console.log('hi', partnerdata)
-      const updata = await partnerdata.forEach((data) => {
-        if(data['status'] == 'yes' && data['delivery']== 'false') {
-          value.push(data);
-        }
-      })
-      res.status(200).json(value);
-  } catch(error) {
-    console.log(error);
-  }
-})
-
-router.get('/delivered', async(req,res) => {
-  try {
-    const partnerId = req.query.id;
-    const partnerdata = await Ordersch.find({partnerid: partnerId});
-      const value = [];
-      const updata = await partnerdata.forEach((data) => {
-        if(data['delivery'] == 'true') {
-          value.push(data);
-        }
-      })
-      console.log(value);
-      res.status(200).json(value);
-  } catch(error) {
-    console.log(error);
-  }
-})
 
 router.get("/getallbids", async function(req, res) {
   try {
@@ -385,6 +499,87 @@ router.get("/getbids", async function(req, res) {
   }
 });
 
+router.get('/getquotesdata', middleware, async(req, res) => {
+  const user = req.userid;
+//   console.log(user);
+  try {
+	var method = {createdAt  : -1} ;
+      const data = await Quote.find({ customerid: user, activestate : true }).sort(method);
+      res.status(200).json(data); 
+  } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Internal Server Error' });
+  }
+})
 
+router.get('/bidstodisplay', async(req, res) => {
+
+  try {
+    const data = await Quote.find({}).sort({_id: -1}).limit(10);
+    res.status(200).json({data});
+  } catch(err) {
+    console.log(err);
+    res.json({err})
+  }
+})
+
+
+router.post('/addAddress',middleware,  async (req, res) => {
+  try {
+    const { addressName, newAddress, name } = req.body;
+	const customerId = req.userid;
+    // Find the customer by ID
+    const customer = await Customer.findById(customerId);
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    customer.addresses.push({ name: addressName, address: newAddress });
+	if(name) {
+		customer.name = name ;
+	}
+    const updatedCustomer = await customer.save();
+	
+    res.status(200).json({updatedCustomer});
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+router.get('/getAddresses', middleware, async (req, res) => {
+  try {
+    	const customerId = req.userid;
+
+
+    // Find the customer by ID
+    const customer = await Customer.findById(customerId);
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Extract and send the addresses
+    const addresses = customer.addresses;
+	const name = customer.name;
+	const phone = customer.phone; 
+    res.status(200).json({ addresses, name, phone });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
+router.get('/sendmail', async(req, res) => {
+sendMail('patnala.1@alumni.iitj.ac.in');
+res.status(200).json({message : 'thankyou'});
+})
+
+
+router.get('/sendmessage', async(req,res) => {
+	sendmessage();
+	res.status(200).json({message : "done"});
+})
 module.exports = router;
 
